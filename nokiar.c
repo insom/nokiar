@@ -8,107 +8,67 @@
 #include <time.h>
 #include <unistd.h>
 
+/*
+
+  | LCD  | BCM    | Pi P1  |
+  + ---- + ------ + ------ +
+  | RST  | GPIO23 | Pin 16 |
+  | DC   | GPIO24 | Pin 18 |
+  | CE0  | GPIO8  | Pin 24 |
+  | DIN  | GPIO10 | Pin 19 |
+  | CLK  | GPIO11 | Pin 23 |
+
+ */
+
 void reset(void) {
-  system("raspi-gpio set 23 op dh");
-  usleep(50);
   system("raspi-gpio set 23 op dl");
+  usleep(50);
+  system("raspi-gpio set 23 op dh");
   usleep(50);
 }
 
-void dc(unsigned char p) {
+void set_dc(unsigned char p) {
   if (p == 0)
     system("raspi-gpio set 24 op dl");
   else
     system("raspi-gpio set 24 op dh");
 }
 
-void ce(unsigned char p) {
-return;
-  if (p == 0)
-    system("raspi-gpio set 25 op dl");
-  else
-    system("raspi-gpio set 25 op dh");
+void lcd_send(int file, char *buf, int len, char dc) {
+  struct spi_ioc_transfer xfer = {
+      .tx_buf = (__u64)buf,
+      .rx_buf = 0,
+      .len = len,
+      .delay_usecs = 0,
+      .speed_hz = 100000,
+  };
+  set_dc(dc);
+  if (ioctl(file, SPI_IOC_MESSAGE(1), &xfer) < 0) {
+    perror("ioctl");
+    exit(1);
+  }
 }
-
-#define DATA dc(1)
-#define COMMAND dc(0)
-
-/*
-   5  reset
-   6  dc
-   13 lcd
-*/
 
 int configure_display(void) {
   int file;
+  unsigned char buf[512];
 
   if ((file = open("/dev/spidev0.0", O_RDWR)) < 0) {
     perror("open");
     exit(1);
   }
 
- // struct spi_ioc_transfer xfer;
- // memset(&xfer, 0, sizeof xfer);
-
-struct spi_ioc_transfer xfer =
-        {
-            .tx_buf = 0,
-            .rx_buf = 0,
-            .len = 0,
-            .delay_usecs = 20,
-            .speed_hz = 100000,
-        };
-
-  unsigned char buf[512];
-
-  memset(buf, 0xaa, sizeof buf);
-
-  static __u32 speed = 10000;
-  if (ioctl(file, SPI_IOC_WR_MAX_SPEED_HZ, &speed) < 0) {
-    perror("ioctl");
-    exit(1);
-  }
-
   reset();
 
-  xfer.tx_buf = (__u64)buf;
-  xfer.len = 4;
-  buf[0] = 0x21;
-  buf[1] = 0xb2;
-  buf[2] = 0x13;
-  buf[3] = 0x20;
-  COMMAND;
-  ce(0);
-  if (ioctl(file, SPI_IOC_MESSAGE(1), &xfer) < 0) {
-    perror("ioctl");
-    exit(1);
-  }
-  ce(1);
+  lcd_send(file, "\x21\xb2\x13\x20", 4, 0);
 
-  memset(buf, 0xaa, sizeof buf);
-  xfer.tx_buf = (__u64)buf;
-  xfer.len = 5 * 84;
-  DATA;
-  ce(0);
-  if (ioctl(file, SPI_IOC_MESSAGE(1), &xfer) < 0) {
-    perror("ioctl");
-    exit(1);
+  for (int i = 0; i < 6 * 84; i++) {
+    /* System 6 Wallpaper */
+    buf[i] = i % 2 == 0 ? 0x55 : 0xaa;
   }
-  ce(1);
+  lcd_send(file, buf, 6 * 84, 1);
 
-  xfer.tx_buf = (__u64)buf;
-  xfer.len = 1;
-  buf[0] = 0x09;
-  buf[1] = 0x0c;
-  buf[2] = 0x41;
-  buf[3] = 0x80;
-  COMMAND;
-  ce(0);
-  if (ioctl(file, SPI_IOC_MESSAGE(1), &xfer) < 0) {
-    perror("ioctl");
-    exit(1);
-  }
-  ce(1);
+  lcd_send(file, "\x09\x0c\x41\x80", 4, 0);
 
   return file;
 }
