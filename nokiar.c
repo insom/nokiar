@@ -9,20 +9,21 @@
 #include <unistd.h>
 
 void reset(void) {
-  system("raspi-gpio set 16 op dh");
-  usleep(500);
-  system("raspi-gpio set 16 op dl");
-  usleep(500);
+  system("raspi-gpio set 23 op dh");
+  usleep(50);
+  system("raspi-gpio set 23 op dl");
+  usleep(50);
 }
 
 void dc(unsigned char p) {
   if (p == 0)
-    system("raspi-gpio set 18 op dl");
+    system("raspi-gpio set 24 op dl");
   else
-    system("raspi-gpio set 18 op dh");
+    system("raspi-gpio set 24 op dh");
 }
 
 void ce(unsigned char p) {
+return;
   if (p == 0)
     system("raspi-gpio set 25 op dl");
   else
@@ -71,13 +72,11 @@ struct spi_ioc_transfer xfer =
   reset();
 
   xfer.tx_buf = (__u64)buf;
-  xfer.len = 6;
+  xfer.len = 4;
   buf[0] = 0x21;
-  buf[1] = 0x14;
-  buf[2] = 0xa8;
+  buf[1] = 0xb2;
+  buf[2] = 0x13;
   buf[3] = 0x20;
-  buf[4] = 0x40;
-  buf[5] = 0x80;
   COMMAND;
   ce(0);
   if (ioctl(file, SPI_IOC_MESSAGE(1), &xfer) < 0) {
@@ -99,7 +98,10 @@ struct spi_ioc_transfer xfer =
 
   xfer.tx_buf = (__u64)buf;
   xfer.len = 1;
-  buf[0] = 0x0d;
+  buf[0] = 0x09;
+  buf[1] = 0x0c;
+  buf[2] = 0x41;
+  buf[3] = 0x80;
   COMMAND;
   ce(0);
   if (ioctl(file, SPI_IOC_MESSAGE(1), &xfer) < 0) {
